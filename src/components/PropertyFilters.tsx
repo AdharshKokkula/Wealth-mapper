@@ -33,7 +33,7 @@ const PropertyFilters = ({ filters, onFiltersChange, loading }: PropertyFiltersP
   };
   
   const handlePropertyTypeChange = (value: string) => {
-    setLocalFilters({ ...localFilters, propertyType: value });
+    setLocalFilters({ ...localFilters, propertyType: value === "all" ? undefined : value });
   };
   
   const handlePropertyValueChange = (value: number[]) => {
@@ -106,14 +106,14 @@ const PropertyFilters = ({ filters, onFiltersChange, loading }: PropertyFiltersP
                 <label className="text-sm font-medium">Property Type</label>
               </div>
               <Select
-                value={localFilters.propertyType}
+                value={localFilters.propertyType || "all"}
                 onValueChange={handlePropertyTypeChange}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="All Types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   {propertyTypes.map(type => (
                     <SelectItem key={type} value={type}>{type}</SelectItem>
                   ))}
