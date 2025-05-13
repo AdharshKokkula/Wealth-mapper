@@ -100,13 +100,13 @@ const PropertyDetails = ({ property, onClose }: PropertyDetailsProps) => {
                         {Object.entries(property.owner.wealth_sources.sources || {}).map(([source, percentage]) => (
                           <div key={source} className="flex justify-between text-sm">
                             <span>{source}</span>
-                            <span>{percentage}%</span>
+                            <span>{percentage as React.ReactNode}%</span>
                           </div>
                         ))}
                       </div>
                       {property.owner.wealth_sources.last_updated && (
                         <p className="text-xs text-wealth-secondary mt-2">
-                          Last updated: {new Date(property.owner.wealth_sources.last_updated).toLocaleDateString()}
+                          Last updated: {new Date(property.owner.wealth_sources.last_updated as string).toLocaleDateString()}
                         </p>
                       )}
                     </div>

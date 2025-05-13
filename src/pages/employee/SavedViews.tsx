@@ -1,31 +1,91 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
+import { getSavedViews } from '@/lib/supabase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
-const mockSavedViews = [
-  { id: '1', name: 'Downtown Commercial Properties', date: '2023-05-10', propertyCount: 24 },
-  { id: '2', name: 'High-Value Residential', date: '2023-05-15', propertyCount: 18 },
-  { id: '3', name: 'West Coast Investment Opportunities', date: '2023-05-22', propertyCount: 31 },
-  { id: '4', name: 'Tech Billionaire Properties', date: '2023-06-01', propertyCount: 12 },
-];
+interface SavedView {
+  id: string;
+  name: string;
+  date: string;
+  propertyCount: number;
+  viewState: any;
+  filters: any;
+}
 
 const SavedViews = () => {
-  const [views] = useState(mockSavedViews);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  
+  const { data: views, isLoading, error, refetch } = useQuery({
+    queryKey: ['savedViews', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [];
+      
+      const savedViewsData = await getSavedViews(user.id);
+      return savedViewsData.map(view => ({
+        id: view.id,
+        ...view.view_data as any,
+      })) as SavedView[];
+    },
+    enabled: !!user?.id
+  });
+  
+  const handleLoadView = (view: SavedView) => {
+    // In a real app, we'd store the view state and filters in global state
+    // or context, and navigate to the map view with those parameters
+    toast.success('Loading saved view...');
+    navigate('/properties/map', { state: { viewState: view.viewState, filters: view.filters } });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="container max-w-6xl py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-wealth-primary">Saved Map Views</h1>
+        </div>
+        <div className="text-center p-12">
+          <div className="animate-pulse">Loading saved views...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container max-w-6xl py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-wealth-primary">Saved Map Views</h1>
+        </div>
+        <div className="text-center p-12 bg-red-50 rounded-lg">
+          <h3 className="text-xl font-medium text-red-800 mb-2">Error Loading Saved Views</h3>
+          <p className="text-red-600 mb-4">Unable to load your saved map views</p>
+          <Button onClick={() => refetch()}>Try Again</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container max-w-6xl py-8">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-wealth-primary">Saved Map Views</h1>
+        <Button onClick={() => navigate('/properties/map')}>
+          Create New View
+        </Button>
       </div>
 
-      {views.length === 0 ? (
+      {!views || views.length === 0 ? (
         <div className="text-center p-12 bg-muted rounded-lg">
           <h3 className="text-xl font-medium mb-2">No saved views yet</h3>
           <p className="text-muted-foreground mb-4">
             Save your map views to quickly access them later
           </p>
-          <Button>Go to Map</Button>
+          <Button onClick={() => navigate('/properties/map')}>Go to Map</Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -63,10 +123,12 @@ const SavedViews = () => {
                     </p>
                   </div>
                   <div className="space-x-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" 
+                      onClick={() => toast.info('Edit functionality will be implemented in a future update.')}
+                    >
                       Edit
                     </Button>
-                    <Button size="sm">
+                    <Button size="sm" onClick={() => handleLoadView(view)}>
                       Load View
                     </Button>
                   </div>

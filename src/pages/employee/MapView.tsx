@@ -4,9 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { FilterState, MapViewState, Property } from '@/types';
 import PropertyMap from '@/components/PropertyMap';
 import PropertyFilters from '@/components/PropertyFilters';
-import { fetchProperties } from '@/services/mockData';
+import { getProperties } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 const MapView = () => {
+  const { user } = useAuth();
   const [filters, setFilters] = useState<FilterState>({
     searchQuery: '',
     propertyValue: [1000000, 10000000],
@@ -19,10 +22,14 @@ const MapView = () => {
     zoom: 4,
   });
 
-  // Fetch properties with the current filters
-  const { data: properties, isLoading, refetch } = useQuery({
+  // Fetch properties with the current filters from Supabase
+  const { data: properties, isLoading, error, refetch } = useQuery({
     queryKey: ['properties', filters],
-    queryFn: () => fetchProperties(filters),
+    queryFn: () => getProperties(filters),
+    onError: (err) => {
+      console.error('Error fetching properties:', err);
+      toast.error('Failed to load property data');
+    }
   });
 
   // Re-fetch when filters change
@@ -37,6 +44,24 @@ const MapView = () => {
   const handleViewStateChange = (viewState: MapViewState) => {
     setMapViewState(viewState);
   };
+
+  // If there's an error, show an error message
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center p-6 bg-red-50 rounded-lg">
+          <h3 className="text-xl font-medium text-red-800 mb-2">Error Loading Properties</h3>
+          <p className="text-red-600">Please try refreshing the page</p>
+          <button 
+            onClick={() => refetch()}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex">
@@ -61,6 +86,7 @@ const MapView = () => {
           loading={isLoading}
           filters={filters}
           onViewStateChange={handleViewStateChange}
+          userId={user?.id}
         />
       </div>
     </div>

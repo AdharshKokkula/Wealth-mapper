@@ -4,6 +4,10 @@ import { Property, MapViewState, FilterState } from '@/types';
 import PropertyDetails from './PropertyDetails';
 import { Button } from './ui/button';
 import { toast } from 'sonner';
+import { createSavedView } from '@/lib/supabase';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 // Declare the L variable from Leaflet, which will be available from the CDN
 declare const L: any;
@@ -12,14 +16,18 @@ interface PropertyMapProps {
   properties: Property[];
   loading: boolean;
   filters: FilterState;
+  userId?: string;
   onViewStateChange?: (viewState: MapViewState) => void;
 }
 
-const PropertyMap = ({ properties, loading, filters, onViewStateChange }: PropertyMapProps) => {
+const PropertyMap = ({ properties, loading, filters, userId, onViewStateChange }: PropertyMapProps) => {
   const mapRef = useRef<any>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<any[]>([]);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [viewName, setViewName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Initialize map on component mount
   useEffect(() => {
@@ -96,46 +104,77 @@ const PropertyMap = ({ properties, loading, filters, onViewStateChange }: Proper
   }, [properties, loading]);
 
   const handleSaveView = () => {
-    if (!mapRef.current) return;
+    setSaveDialogOpen(true);
+  };
+
+  const saveView = async () => {
+    if (!mapRef.current || !userId || !viewName.trim()) {
+      toast.error('Unable to save view');
+      return;
+    }
     
-    const center = mapRef.current.getCenter();
-    const viewState: MapViewState = {
-      center: [center.lat, center.lng],
-      zoom: mapRef.current.getZoom(),
-      bounds: [
-        [mapRef.current.getBounds().getSouth(), mapRef.current.getBounds().getWest()],
-        [mapRef.current.getBounds().getNorth(), mapRef.current.getBounds().getEast()]
-      ]
-    };
+    setIsSaving(true);
     
-    console.log('Saving map view:', viewState);
-    toast.success('Map view saved successfully!');
+    try {
+      const center = mapRef.current.getCenter();
+      const viewState: MapViewState = {
+        center: [center.lat, center.lng],
+        zoom: mapRef.current.getZoom(),
+        bounds: [
+          [mapRef.current.getBounds().getSouth(), mapRef.current.getBounds().getWest()],
+          [mapRef.current.getBounds().getNorth(), mapRef.current.getBounds().getEast()]
+        ]
+      };
+      
+      // Save to Supabase
+      await createSavedView(userId, { 
+        name: viewName,
+        date: new Date().toISOString(),
+        viewState,
+        filters,
+        propertyCount: properties.length,
+      });
+      
+      toast.success('Map view saved successfully!');
+      setSaveDialogOpen(false);
+      setViewName('');
+    } catch (error) {
+      console.error('Error saving view:', error);
+      toast.error('Failed to save map view');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <div className="relative h-full">
+      {/* Map container */}
       <div 
         ref={mapContainerRef} 
         className="map-container"
         style={{ height: 'calc(100vh - 4rem)' }}
       />
       
+      {/* Loading overlay */}
       {loading && (
         <div className="absolute inset-0 bg-white/50 flex items-center justify-center">
           <div className="text-xl font-semibold animate-pulse">Loading properties...</div>
         </div>
       )}
       
+      {/* Save view button */}
       <div className="absolute top-4 right-4 z-10 space-y-2">
         <Button 
           onClick={handleSaveView}
           variant="secondary" 
           className="shadow-lg"
+          disabled={loading || !userId}
         >
           Save Current View
         </Button>
       </div>
       
+      {/* Property details popup */}
       {selectedProperty && (
         <div className="absolute bottom-4 left-4 right-4 z-10 max-w-2xl mx-auto">
           <PropertyDetails 
@@ -144,6 +183,45 @@ const PropertyMap = ({ properties, loading, filters, onViewStateChange }: Proper
           />
         </div>
       )}
+
+      {/* Save view dialog */}
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save Map View</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="name"
+                value={viewName}
+                onChange={(e) => setViewName(e.target.value)}
+                placeholder="Downtown Properties"
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <div className="text-right text-sm text-muted-foreground">
+                Properties
+              </div>
+              <div className="col-span-3">
+                {properties.length} properties visible
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setSaveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={saveView} disabled={isSaving || !viewName.trim()}>
+              {isSaving ? 'Saving...' : 'Save View'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

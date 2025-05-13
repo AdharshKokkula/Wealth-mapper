@@ -3,6 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { User, UserRole } from '@/types';
+import { supabase, signIn as supabaseSignIn, signOut as supabaseSignOut } from '@/lib/supabase';
 
 interface AuthContextType {
   user: User | null;
@@ -15,64 +16,102 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-// Mock user data - to replace with actual Supabase auth when integrated
-const mockUsers = [
-  {
-    id: '1',
-    email: 'admin@wealthmap.com',
-    role: 'admin' as UserRole,
-    company_id: '1',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    email: 'employee@wealthmap.com',
-    role: 'employee' as UserRole,
-    company_id: '1',
-    created_at: new Date().toISOString(),
-  },
-];
-
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for existing session in localStorage (mock)
-    const savedUser = localStorage.getItem('wealthmap_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    // Check for existing session with Supabase
+    const checkSession = async () => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        
+        if (data.session) {
+          // Get the user profile
+          const { data: userData, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', data.session.user.id)
+            .single();
+            
+          if (error) throw error;
+          setUser(userData as User);
+        }
+      } catch (error) {
+        console.error('Session check error:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    checkSession();
+    
+    // Set up auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        try {
+          const { data: userData, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (error) throw error;
+          setUser(userData as User);
+        } catch (error) {
+          console.error('Error fetching user data:', error);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+    
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Mock authentication - replace with actual Supabase auth
-      const foundUser = mockUsers.find(u => u.email === email);
-      if (foundUser && password === 'password') {
-        setUser(foundUser);
-        localStorage.setItem('wealthmap_user', JSON.stringify(foundUser));
+      // Sign in with Supabase
+      await supabaseSignIn(email, password);
+      
+      // Get user data
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      
+      if (authUser) {
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.id)
+          .single();
+          
+        if (error) throw error;
+        
+        setUser(userData as User);
         toast.success('Successfully logged in');
-        navigate(foundUser.role === 'admin' ? '/admin/dashboard' : '/properties/map');
-      } else {
-        toast.error('Invalid email or password');
+        navigate(userData.role === 'admin' ? '/admin/dashboard' : '/properties/map');
       }
     } catch (error) {
       console.error('Login error:', error);
-      toast.error('Error logging in');
+      toast.error('Invalid email or password');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signOut = () => {
-    localStorage.removeItem('wealthmap_user');
-    setUser(null);
-    navigate('/');
-    toast.success('Successfully logged out');
+  const signOut = async () => {
+    try {
+      await supabaseSignOut();
+      setUser(null);
+      navigate('/');
+      toast.success('Successfully logged out');
+    } catch (error) {
+      console.error('Logout error:', error);
+      toast.error('Error logging out');
+    }
   };
 
   const value = {

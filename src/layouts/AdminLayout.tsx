@@ -20,7 +20,7 @@ const AdminLayout = () => {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
-        <Sidebar defaultCollapsed={isCollapsed} onCollapsedChange={setIsCollapsed}>
+        <Sidebar className={isCollapsed ? 'w-16' : 'w-64'} collapsed={isCollapsed} onCollapsedChange={setIsCollapsed}>
           <SidebarHeader className="border-b px-6 py-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-wealth-primary">
