@@ -9,7 +9,240 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      companies: {
+        Row: {
+          data_preferences: Json | null
+          id: string
+          logo_url: string | null
+          name: string
+        }
+        Insert: {
+          data_preferences?: Json | null
+          id?: string
+          logo_url?: string | null
+          name: string
+        }
+        Update: {
+          data_preferences?: Json | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+        }
+        Relationships: []
+      }
+      filters: {
+        Row: {
+          filter_data: Json
+          id: string
+          user_id: string
+        }
+        Insert: {
+          filter_data: Json
+          id?: string
+          user_id: string
+        }
+        Update: {
+          filter_data?: Json
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "filters_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      logs: {
+        Row: {
+          action: string
+          id: string
+          timestamp: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          id?: string
+          timestamp?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          id?: string
+          timestamp?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owners: {
+        Row: {
+          confidence: number | null
+          id: string
+          name: string
+          net_worth: number | null
+          wealth_sources: Json | null
+        }
+        Insert: {
+          confidence?: number | null
+          id?: string
+          name: string
+          net_worth?: number | null
+          wealth_sources?: Json | null
+        }
+        Update: {
+          confidence?: number | null
+          id?: string
+          name?: string
+          net_worth?: number | null
+          wealth_sources?: Json | null
+        }
+        Relationships: []
+      }
+      properties: {
+        Row: {
+          address: string
+          id: string
+          images: Json | null
+          latitude: number
+          longitude: number
+          owner_id: string
+          size: number | null
+          transaction_history: Json | null
+          type: string | null
+          value: number | null
+        }
+        Insert: {
+          address: string
+          id?: string
+          images?: Json | null
+          latitude: number
+          longitude: number
+          owner_id: string
+          size?: number | null
+          transaction_history?: Json | null
+          type?: string | null
+          value?: number | null
+        }
+        Update: {
+          address?: string
+          id?: string
+          images?: Json | null
+          latitude?: number
+          longitude?: number
+          owner_id?: string
+          size?: number | null
+          transaction_history?: Json | null
+          type?: string | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "properties_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "owners"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reports: {
+        Row: {
+          created_at: string
+          id: string
+          report_data: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          report_data: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          report_data?: Json
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saved_views: {
+        Row: {
+          id: string
+          user_id: string
+          view_data: Json
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          view_data: Json
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          view_data?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          company_id: string
+          created_at: string
+          email: string
+          id: string
+          role: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          email: string
+          id: string
+          role: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
