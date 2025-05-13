@@ -3,12 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
 // Initialize Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('Missing Supabase URL or Anon Key');
-}
+const supabaseUrl = "https://ohfgqqnxffoqukpmwqln.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZmdxcW54ZmZvcXVrcG13cWxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxMzEzNDEsImV4cCI6MjA2MjcwNzM0MX0.eiv6AB-5lPbFHLwEfTS6au9-HhjxeYcx-lH_mEGK9ZI";
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
@@ -95,7 +91,7 @@ export const getProperties = async (filters?: any) => {
       query = query.ilike('address', `%${filters.searchQuery}%`);
     }
     
-    if (filters.propertyType) {
+    if (filters.propertyType && filters.propertyType !== 'all') {
       query = query.eq('type', filters.propertyType);
     }
     
@@ -112,14 +108,20 @@ export const getProperties = async (filters?: any) => {
     }
     
     if (filters.ownerNetWorth && filters.ownerNetWorth.length === 2) {
-      // This would typically be a join query, but for simplicity:
-      query = query.in('owner_id', 
-        supabase
-          .from('owners')
-          .select('id')
-          .gte('net_worth', filters.ownerNetWorth[0])
-          .lte('net_worth', filters.ownerNetWorth[1])
-      );
+      // Fix the way we filter by owner net worth
+      const minNetWorth = filters.ownerNetWorth[0];
+      const maxNetWorth = filters.ownerNetWorth[1];
+      
+      const { data: ownerIds } = await supabase
+        .from('owners')
+        .select('id')
+        .gte('net_worth', minNetWorth)
+        .lte('net_worth', maxNetWorth);
+        
+      if (ownerIds && ownerIds.length > 0) {
+        const ids = ownerIds.map(owner => owner.id);
+        query = query.in('owner_id', ids);
+      }
     }
   }
   

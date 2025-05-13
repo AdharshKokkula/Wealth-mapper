@@ -26,9 +26,11 @@ const MapView = () => {
   const { data: properties, isLoading, error, refetch } = useQuery({
     queryKey: ['properties', filters],
     queryFn: () => getProperties(filters),
-    onError: (err) => {
-      console.error('Error fetching properties:', err);
-      toast.error('Failed to load property data');
+    meta: {
+      onError: (err: any) => {
+        console.error('Error fetching properties:', err);
+        toast.error('Failed to load property data');
+      }
     }
   });
 
