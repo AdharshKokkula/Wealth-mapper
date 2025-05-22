@@ -1,4 +1,3 @@
-
 export type UserRole = 'admin' | 'employee';
 
 export interface User {
@@ -77,3 +76,15 @@ export interface FilterState {
   ownerNetWorth?: [number, number];
   searchQuery?: string;
 }
+
+export type Session = {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+  expires_in: number;
+  user: {
+    id: string;
+    email: string;
+    role: string;
+  };
+};

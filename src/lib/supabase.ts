@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
@@ -5,13 +6,29 @@ import { Database } from '../types/supabase';
 const supabaseUrl = "https://ohfgqqnxffoqukpmwqln.supabase.co";
 const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9oZmdxcW54ZmZvcXVrcG13cWxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxMzEzNDEsImV4cCI6MjA2MjcwNzM0MX0.eiv6AB-5lPbFHLwEfTS6au9-HhjxeYcx-lH_mEGK9ZI";
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+  }
+});
 
 // Auth helper functions
 export const signIn = async (email: string, password: string) => {
   return await supabase.auth.signInWithPassword({
     email,
     password,
+  });
+};
+
+export const signUp = async (email: string, password: string, userData?: any) => {
+  return await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: userData || {},
+    },
   });
 };
 
@@ -24,6 +41,12 @@ export const getCurrentUser = async () => {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
   return data?.session?.user || null;
+};
+
+export const getSession = async () => {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  return data.session;
 };
 
 // Database helper functions

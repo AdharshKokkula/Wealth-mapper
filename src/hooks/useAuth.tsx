@@ -2,11 +2,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
-import { User, UserRole } from '@/types';
-import { supabase, signIn as supabaseSignIn, signOut as supabaseSignOut } from '@/lib/supabase';
+import { User, UserRole, Session } from '@/types';
+import { supabase, signIn as supabaseSignIn, signOut as supabaseSignOut, signUp as supabaseSignUp } from '@/lib/supabase';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, fullName: string) => Promise<void>;
@@ -21,17 +22,52 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for existing session with Supabase
+    // Set up auth state change listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, newSession) => {
+        console.log('Auth state changed:', event, newSession?.user?.id);
+        setSession(newSession);
+        
+        // Don't perform Supabase calls directly in the callback to avoid deadlocks
+        if (newSession?.user) {
+          setTimeout(async () => {
+            try {
+              const { data, error } = await supabase
+                .from('users')
+                .select('*')
+                .eq('id', newSession.user.id)
+                .single();
+                
+              if (error) {
+                console.error('Error fetching user data:', error);
+                return;
+              }
+              
+              setUser(data as User);
+            } catch (err) {
+              console.error('Error in timeout callback:', err);
+            }
+          }, 0);
+        } else {
+          setUser(null);
+        }
+      }
+    );
+    
+    // THEN check for existing session
     const checkSession = async () => {
       try {
         const { data } = await supabase.auth.getSession();
         
         if (data.session) {
+          setSession(data.session);
+          
           // Get the user profile
           const { data: userData, error } = await supabase
             .from('users')
@@ -39,7 +75,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             .eq('id', data.session.user.id)
             .single();
             
-          if (error) throw error;
+          if (error) {
+            console.error('Error fetching user data:', error);
+            setIsLoading(false);
+            return;
+          }
+          
           setUser(userData as User);
         }
       } catch (error) {
@@ -51,28 +92,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     
     checkSession();
     
-    // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        try {
-          const { data: userData, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (error) throw error;
-          setUser(userData as User);
-        } catch (error) {
-          console.error('Error fetching user data:', error);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    });
-    
     return () => {
-      authListener.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -89,19 +110,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       // Get user data
       if (response.data.user) {
+        setSession(response.data.session);
+        
         const { data: userData, error } = await supabase
           .from('users')
           .select('*')
           .eq('id', response.data.user.id)
           .single();
           
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching user data after signin:', error);
+          throw error;
+        }
         
         setUser(userData as User);
         toast({
           title: "Success!",
           description: "Successfully logged in",
         });
+        
+        // Navigate based on user role
         navigate(userData.role === 'admin' ? '/admin/dashboard' : '/properties/map');
       }
     } catch (error: any) {
@@ -122,39 +150,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       // Sign up with Supabase
-      const response = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-        },
+      const response = await supabaseSignUp(email, password, {
+        full_name: fullName,
       });
       
       if (response.error) throw response.error;
 
-      if (response.data.user) {
-        // Insert the new user into our custom users table
-        const newUser = {
-          id: response.data.user.id,
-          email: response.data.user.email,
-          role: 'employee', // Default role for new users
-          company_id: "648813f5-3e95-4a15-9169-31d4af71ca4b", // Default company ID
-        };
-        
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([newUser]);
-          
-        if (insertError) throw insertError;
-        
-        toast({
-          title: "Registration successful!",
-          description: "Please check your email to verify your account.",
-        });
-        navigate('/login');
-      }
+      toast({
+        title: "Registration successful!",
+        description: "Please check your email to verify your account.",
+      });
+      navigate('/login');
     } catch (error: any) {
       console.error('Registration error:', error);
       setError(error.message || 'Registration failed.');
@@ -172,6 +178,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await supabaseSignOut();
       setUser(null);
+      setSession(null);
       navigate('/login');
       toast({
         title: "Success!",
@@ -189,11 +196,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const value = {
     user,
+    session,
     isLoading,
     signIn,
     signUp,
     signOut,
-    isAuthenticated: !!user,
+    isAuthenticated: !!session,
     isAdmin: user?.role === 'admin',
     error,
     setError,

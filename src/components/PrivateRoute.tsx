@@ -1,6 +1,6 @@
 
 import { ReactNode } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { UserRole } from '@/types';
 
@@ -11,6 +11,7 @@ interface PrivateRouteProps {
 
 const PrivateRoute = ({ children, allowedRole }: PrivateRouteProps) => {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -23,7 +24,8 @@ const PrivateRoute = ({ children, allowedRole }: PrivateRouteProps) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" />;
+    // Save the location they were trying to access for redirect after login
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // If role is specified, check if user has that role
