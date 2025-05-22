@@ -7,10 +7,12 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import { AuthProvider } from "@/hooks/useAuth";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import AdminLayout from "./layouts/AdminLayout";
 import EmployeeLayout from "./layouts/EmployeeLayout";
 import NotFound from "./pages/NotFound";
 import PrivateRoute from "./components/PrivateRoute";
+import Index from "./pages/Index";
 
 // Admin routes
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -35,8 +37,9 @@ const App = () => (
           <Sonner />
           <Routes>
             {/* Public routes */}
-            <Route path="/" element={<LoginPage />} />
+            <Route path="/" element={<Index />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
             
             {/* Admin routes */}
             <Route path="/admin" element={<PrivateRoute allowedRole="admin"><AdminLayout /></PrivateRoute>}>

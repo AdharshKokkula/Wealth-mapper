@@ -1,7 +1,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/use-toast';
 import { User, UserRole } from '@/types';
 import { supabase, signIn as supabaseSignIn, signOut as supabaseSignOut } from '@/lib/supabase';
 
@@ -9,9 +9,12 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string) => Promise<void>;
   signOut: () => void;
   isAuthenticated: boolean;
   isAdmin: boolean;
+  error: string | null;
+  setError: (error: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -19,6 +22,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,30 +77,92 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    setError(null);
     setIsLoading(true);
     try {
       // Sign in with Supabase
-      await supabaseSignIn(email, password);
+      const { data, error: signInError } = await supabaseSignIn(email, password);
+      
+      if (signInError) {
+        throw signInError;
+      }
       
       // Get user data
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      
-      if (authUser) {
+      if (data.user) {
         const { data: userData, error } = await supabase
           .from('users')
           .select('*')
-          .eq('id', authUser.id)
+          .eq('id', data.user.id)
           .single();
           
         if (error) throw error;
         
         setUser(userData as User);
-        toast.success('Successfully logged in');
+        toast({
+          title: "Success!",
+          description: "Successfully logged in",
+        });
         navigate(userData.role === 'admin' ? '/admin/dashboard' : '/properties/map');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      toast.error('Invalid email or password');
+      setError(error.message || 'Invalid email or password');
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: error.message || 'Invalid email or password',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signUp = async (email: string, password: string, fullName: string) => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      // Sign up with Supabase
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
+      });
+      
+      if (signUpError) throw signUpError;
+
+      if (data.user) {
+        // Insert the new user into our custom users table
+        const newUser = {
+          id: data.user.id,
+          email: data.user.email,
+          role: 'employee', // Default role for new users
+          company_id: "648813f5-3e95-4a15-9169-31d4af71ca4b", // Default company ID
+        };
+        
+        const { error: insertError } = await supabase
+          .from('users')
+          .insert([newUser]);
+          
+        if (insertError) throw insertError;
+        
+        toast({
+          title: "Registration successful!",
+          description: "Please check your email to verify your account.",
+        });
+        navigate('/login');
+      }
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      setError(error.message || 'Registration failed.');
+      toast({
+        variant: "destructive",
+        title: "Registration failed",
+        description: error.message || "Couldn't create your account. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -106,11 +172,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await supabaseSignOut();
       setUser(null);
-      navigate('/');
-      toast.success('Successfully logged out');
+      navigate('/login');
+      toast({
+        title: "Success!",
+        description: "Successfully logged out",
+      });
     } catch (error) {
       console.error('Logout error:', error);
-      toast.error('Error logging out');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error logging out",
+      });
     }
   };
 
@@ -118,9 +191,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     user,
     isLoading,
     signIn,
+    signUp,
     signOut,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
+    error,
+    setError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
