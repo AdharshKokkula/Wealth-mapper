@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useNavigate } from 'react-router-dom';
 import { toast } from '@/components/ui/use-toast';
 import { User, UserRole, Session } from '@/types';
-import { supabase, signIn as supabaseSignIn, signOut as supabaseSignOut, signUp as supabaseSignUp } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AuthContextType {
   user: User | null;
@@ -32,7 +32,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
         console.log('Auth state changed:', event, newSession?.user?.id);
-        setSession(newSession);
+        
+        // Cast the Supabase session to our Session type if needed
+        setSession(newSession as unknown as Session | null);
         
         // Don't perform Supabase calls directly in the callback to avoid deadlocks
         if (newSession?.user) {
@@ -66,7 +68,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const { data } = await supabase.auth.getSession();
         
         if (data.session) {
-          setSession(data.session);
+          // Cast the Supabase session to our Session type if needed
+          setSession(data.session as unknown as Session);
           
           // Get the user profile
           const { data: userData, error } = await supabase
@@ -102,20 +105,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       // Sign in with Supabase
-      const response = await supabaseSignIn(email, password);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
       
-      if (response.error) {
-        throw response.error;
+      if (error) {
+        throw error;
       }
       
       // Get user data
-      if (response.data.user) {
-        setSession(response.data.session);
+      if (data.user) {
+        // Cast the Supabase session to our Session type if needed
+        setSession(data.session as unknown as Session);
         
         const { data: userData, error } = await supabase
           .from('users')
           .select('*')
-          .eq('id', response.data.user.id)
+          .eq('id', data.user.id)
           .single();
           
         if (error) {
@@ -150,11 +157,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       // Sign up with Supabase
-      const response = await supabaseSignUp(email, password, {
-        full_name: fullName,
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+          },
+        },
       });
       
-      if (response.error) throw response.error;
+      if (error) throw error;
 
       toast({
         title: "Registration successful!",
@@ -176,7 +189,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     try {
-      await supabaseSignOut();
+      await supabase.auth.signOut();
       setUser(null);
       setSession(null);
       navigate('/login');

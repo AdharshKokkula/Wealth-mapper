@@ -1,3 +1,4 @@
+
 export type UserRole = 'admin' | 'employee';
 
 export interface User {
@@ -77,10 +78,11 @@ export interface FilterState {
   searchQuery?: string;
 }
 
+// Updated Session type to match Supabase's session structure
 export type Session = {
   access_token: string;
   refresh_token: string;
-  expires_at: number;
+  expires_at?: number;  // Changed from required to optional
   expires_in: number;
   user: {
     id: string;
