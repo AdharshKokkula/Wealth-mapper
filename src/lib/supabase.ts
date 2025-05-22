@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/supabase';
 
@@ -10,13 +9,10 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 // Auth helper functions
 export const signIn = async (email: string, password: string) => {
-  const { data, error } = await supabase.auth.signInWithPassword({
+  return await supabase.auth.signInWithPassword({
     email,
     password,
   });
-  
-  if (error) throw error;
-  return data;
 };
 
 export const signOut = async () => {
