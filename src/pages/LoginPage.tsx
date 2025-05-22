@@ -18,6 +18,7 @@ const LoginPage = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
+      console.log("User authenticated:", user);
       navigate(user.role === 'admin' ? '/admin/dashboard' : '/properties/map');
     }
   }, [isAuthenticated, user, navigate]);
@@ -47,6 +48,7 @@ const LoginPage = () => {
       return;
     }
     
+    console.log("Attempting login with:", email);
     await signIn(email, password);
   };
   

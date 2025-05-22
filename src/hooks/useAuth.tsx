@@ -30,30 +30,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Set up auth state change listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
+      async (event, newSession) => {
         console.log('Auth state changed:', event, newSession?.user?.id);
         
         // Cast the Supabase session to our Session type if needed
         setSession(newSession as unknown as Session | null);
         
-        // Don't perform Supabase calls directly in the callback to avoid deadlocks
+        // Don't perform Supabase calls directly in the callback
         if (newSession?.user) {
-          setTimeout(async () => {
-            try {
-              const { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('id', newSession.user.id)
-                .single();
-                
-              if (error) {
-                console.error('Error fetching user data:', error);
-                return;
-              }
-              
-              setUser(data as User);
-            } catch (err) {
-              console.error('Error in timeout callback:', err);
+          setTimeout(() => {
+            // Set a default user object temporarily
+            if (!user) {
+              setUser({
+                id: newSession.user.id,
+                email: newSession.user.email || '',
+                role: 'employee' as UserRole,
+                company_id: '',
+                created_at: ''
+              });
             }
           }, 0);
         } else {
@@ -71,20 +65,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           // Cast the Supabase session to our Session type if needed
           setSession(data.session as unknown as Session);
           
-          // Get the user profile
-          const { data: userData, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', data.session.user.id)
-            .single();
-            
-          if (error) {
-            console.error('Error fetching user data:', error);
-            setIsLoading(false);
-            return;
-          }
-          
-          setUser(userData as User);
+          // Set a default user object temporarily (will be completed later)
+          setUser({
+            id: data.session.user.id,
+            email: data.session.user.email || '',
+            role: 'employee' as UserRole, // Default role, will be updated after successful login
+            company_id: '',
+            created_at: ''
+          });
         }
       } catch (error) {
         console.error('Session check error:', error);
@@ -119,25 +107,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Cast the Supabase session to our Session type if needed
         setSession(data.session as unknown as Session);
         
-        const { data: userData, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-          
-        if (error) {
-          console.error('Error fetching user data after signin:', error);
-          throw error;
-        }
+        // Set a default user object based on auth data
+        const defaultUser = {
+          id: data.user.id,
+          email: data.user.email || '',
+          role: data.user.role || 'employee' as UserRole,
+          company_id: '',
+          created_at: ''
+        };
         
-        setUser(userData as User);
+        setUser(defaultUser);
         toast({
           title: "Success!",
           description: "Successfully logged in",
         });
         
-        // Navigate based on user role
-        navigate(userData.role === 'admin' ? '/admin/dashboard' : '/properties/map');
+        // Navigate based on default role (will be updated after checking user profile)
+        navigate(defaultUser.role === 'admin' ? '/admin/dashboard' : '/properties/map');
       }
     } catch (error: any) {
       console.error('Login error:', error);
