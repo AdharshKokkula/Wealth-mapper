@@ -81,18 +81,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       // Sign in with Supabase
-      const { data, error: signInError } = await supabaseSignIn(email, password);
+      const { data: authData, error: signInError } = await supabaseSignIn(email, password);
       
       if (signInError) {
         throw signInError;
       }
       
       // Get user data
-      if (data.user) {
+      if (authData.user) {
         const { data: userData, error } = await supabase
           .from('users')
           .select('*')
-          .eq('id', data.user.id)
+          .eq('id', authData.user.id)
           .single();
           
         if (error) throw error;
@@ -122,7 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       // Sign up with Supabase
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -134,11 +134,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (signUpError) throw signUpError;
 
-      if (data.user) {
+      if (authData.user) {
         // Insert the new user into our custom users table
         const newUser = {
-          id: data.user.id,
-          email: data.user.email,
+          id: authData.user.id,
+          email: authData.user.email,
           role: 'employee', // Default role for new users
           company_id: "648813f5-3e95-4a15-9169-31d4af71ca4b", // Default company ID
         };

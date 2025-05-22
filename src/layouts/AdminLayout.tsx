@@ -20,7 +20,9 @@ const AdminLayout = () => {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
-        <Sidebar className={isCollapsed ? 'w-16' : 'w-64'} onCollapsedChange={setIsCollapsed}>
+        <Sidebar 
+          className={isCollapsed ? 'w-16' : 'w-64'}
+        >
           <SidebarHeader className="border-b px-6 py-5">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-bold text-wealth-primary">
@@ -97,7 +99,7 @@ const AdminLayout = () => {
         </Sidebar>
         <div className="flex flex-1 flex-col">
           <header className="flex h-16 items-center border-b px-6">
-            <SidebarTrigger />
+            <SidebarTrigger onClick={() => setIsCollapsed(!isCollapsed)} />
             <h1 className="ml-4 text-xl font-medium">Admin Dashboard</h1>
           </header>
           <main className="flex-1 overflow-auto p-6">
