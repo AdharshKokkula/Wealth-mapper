@@ -1,5 +1,14 @@
+// Re-export the toast from Sonner
+import { toast } from 'sonner';
 
-import { useToast as useHooksToast, toast as hooksToast } from "@/hooks/use-toast";
+// We'll export it for backward compatibility
+export { toast };
 
-export const useToast = useHooksToast;
-export const toast = hooksToast;
+// The original useToast hook is no longer needed, but
+// we'll keep a minimal implementation for compatibility
+export const useToast = () => {
+  return {
+    toast,
+    toasts: [], // Empty toasts array for compatibility
+  };
+};

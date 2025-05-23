@@ -1,12 +1,5 @@
-export type UserRole = 'admin' | 'employee';
 
-export interface User {
-  id: string;
-  email: string;
-  role: UserRole;
-  company_id: string;
-  created_at: string;
-}
+export type UserRole = 'admin' | 'employee';
 
 export interface Company {
   id: string;
@@ -35,6 +28,7 @@ export interface Property {
   owner?: Owner;
   images?: Record<string, any>;
   transaction_history?: Record<string, any>[];
+  user_id: string; // Add user_id to associate properties with users
 }
 
 export interface SavedView {
@@ -77,5 +71,5 @@ export interface FilterState {
   searchQuery?: string;
 }
 
-// Export auth types directly
+// Re-export auth types
 export type { User } from './auth';

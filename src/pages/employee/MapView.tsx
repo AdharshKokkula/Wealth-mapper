@@ -8,6 +8,24 @@ import { getProperties } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
+// Mock function to get user-specific properties
+const getUserProperties = async (userId: string, filters: FilterState) => {
+  try {
+    // In a real app, this would call the backend API with user_id and filters
+    // For now, we'll use the existing getProperties function and filter by user_id
+    const allProperties = await getProperties(filters);
+    
+    // Mock data: Make some properties belong to the current user
+    return allProperties.map((property: Property, index: number) => ({
+      ...property,
+      user_id: index % 3 === 0 ? userId : `other-user-${index % 5}`
+    })).filter((p: Property) => p.user_id === userId);
+  } catch (error) {
+    console.error('Error fetching user properties:', error);
+    throw error;
+  }
+};
+
 const MapView = () => {
   const { user } = useAuth();
   const [filters, setFilters] = useState<FilterState>({
@@ -22,10 +40,11 @@ const MapView = () => {
     zoom: 4,
   });
 
-  // Fetch properties with the current filters from Supabase
+  // Fetch user-specific properties with the current filters
   const { data: properties, isLoading, error, refetch } = useQuery({
-    queryKey: ['properties', filters],
-    queryFn: () => getProperties(filters),
+    queryKey: ['userProperties', user?.id, filters],
+    queryFn: () => user ? getUserProperties(user.id, filters) : [],
+    enabled: !!user?.id,
     meta: {
       onError: (err: any) => {
         console.error('Error fetching properties:', err);
@@ -36,8 +55,10 @@ const MapView = () => {
 
   // Re-fetch when filters change
   useEffect(() => {
-    refetch();
-  }, [filters, refetch]);
+    if (user?.id) {
+      refetch();
+    }
+  }, [filters, refetch, user?.id]);
 
   const handleFiltersChange = (newFilters: FilterState) => {
     setFilters(newFilters);

@@ -1,6 +1,6 @@
 
-import { toast } from '@/components/ui/use-toast';
-import { User } from '@/types/auth';
+import { toast } from "sonner";
+import { User } from "@/types/auth";
 
 const API_URL = 'https://wealthmap-mock-api.onrender.com/api';
 
@@ -10,7 +10,7 @@ const MOCK_USERS = [
     id: '00000000-0000-0000-0000-000000000001',
     email: 'admin@wealthmap.com',
     password: 'password', // In a real app, this would be hashed
-    role: 'admin',
+    role: 'admin' as const,
     company_id: '648813f5-3e95-4a15-9169-31d4af71ca4b',
     created_at: '2023-01-01T00:00:00.000Z',
   },
@@ -18,7 +18,7 @@ const MOCK_USERS = [
     id: '00000000-0000-0000-0000-000000000002',
     email: 'employee@wealthmap.com',
     password: 'password', // In a real app, this would be hashed
-    role: 'employee',
+    role: 'employee' as const,
     company_id: '648813f5-3e95-4a15-9169-31d4af71ca4b',
     created_at: '2023-01-01T00:00:00.000Z',
   }
@@ -68,7 +68,7 @@ export async function registerUser(email: string, password: string, fullName: st
     }
     
     // Create new user (in a real app, this would be saved to a database)
-    const newUser = {
+    const newUser: User = {
       id: crypto.randomUUID(),
       email,
       role: 'employee',
@@ -125,17 +125,10 @@ export function clearUserSession(): void {
 }
 
 export function handleAuthSuccess(message: string) {
-  toast({
-    title: "Success!",
-    description: message,
-  });
+  toast.success(message);
 }
 
 export function handleAuthError(error: any) {
   const errorMessage = typeof error === 'string' ? error : error?.message || 'Authentication error';
-  toast({
-    variant: "destructive",
-    title: "Error",
-    description: errorMessage,
-  });
+  toast.error(errorMessage);
 }
