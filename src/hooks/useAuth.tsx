@@ -1,68 +1,32 @@
 
 import { useState, useEffect, ReactNode, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, UserRole } from '@/types';
-import { Session, AuthContextType } from '@/types/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { User } from '@/types/auth';
 import { AuthContext, AuthProvider as BaseAuthProvider } from '@/contexts/AuthContext';
 import { 
-  fetchUserProfile, 
-  signInWithEmail, 
-  signUpWithEmail, 
-  signOutUser, 
-  getCurrentSession,
-  createDefaultUser,
+  loginUser, 
+  registerUser,
+  fetchUserProfile,
+  getCurrentUser,
+  clearUserSession,
   handleAuthSuccess,
   handleAuthError
 } from '@/services/authService';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Check for existing user session on initial load
   useEffect(() => {
-    // Set up auth state change listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
-        console.log('Auth state changed:', event, newSession?.user?.id);
-        
-        // Cast the Supabase session to our Session type if needed
-        setSession(newSession as unknown as Session | null);
-        
-        // Don't perform Supabase calls directly in the callback
-        if (newSession?.user) {
-          setTimeout(() => {
-            // Set a default user object temporarily
-            if (!user) {
-              setUser(createDefaultUser(newSession.user.id, newSession.user.email || ''));
-            }
-          }, 0);
-        } else {
-          setUser(null);
-        }
-      }
-    );
-    
-    // THEN check for existing session
-    const checkSession = async () => {
+    const checkUserSession = async () => {
       try {
-        const { data } = await supabase.auth.getSession();
+        const storedUser = getCurrentUser();
         
-        if (data.session) {
-          // Cast the Supabase session to our Session type if needed
-          setSession(data.session as unknown as Session);
-          
-          // Set a default user object temporarily (will be completed later)
-          setUser(createDefaultUser(data.session.user.id, data.session.user.email || ''));
-          
-          // Try to get the actual user data from the database
-          const userData = await fetchUserProfile(data.session.user.id);
-          if (userData) {
-            setUser(userData);
-          }
+        if (storedUser) {
+          setUser(storedUser);
         }
       } catch (error) {
         console.error('Session check error:', error);
@@ -71,52 +35,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     
-    checkSession();
-    
-    return () => {
-      subscription.unsubscribe();
-    };
+    checkUserSession();
   }, []);
 
   const signIn = async (email: string, password: string) => {
     setError(null);
     setIsLoading(true);
+    
     try {
-      // Sign in with Supabase
-      const { data, error } = await signInWithEmail(email, password);
+      const userData = await loginUser(email, password);
       
-      if (error) {
-        throw error;
-      }
-      
-      // Get user data
-      if (data.user) {
-        // Cast the Supabase session to our Session type if needed
-        setSession(data.session as unknown as Session);
-        
-        // Try to get user data from the database
-        const userData = await fetchUserProfile(data.user.id);
-        
-        if (userData) {
-          setUser(userData);
-          handleAuthSuccess("Successfully logged in");
-          navigate(userData.role === 'admin' ? '/admin/dashboard' : '/properties/map');
-          return;
-        }
-        
-        // Fallback: Use metadata from auth if database fetch fails
-        const role = ((data.user.user_metadata?.role || 'employee') as UserRole);
-        const defaultUser = {
-          id: data.user.id,
-          email: data.user.email || '',
-          role: role,
-          company_id: '',
-          created_at: ''
-        };
-        
-        setUser(defaultUser);
+      if (userData) {
+        setUser(userData);
         handleAuthSuccess("Successfully logged in");
-        navigate(role === 'admin' ? '/admin/dashboard' : '/properties/map');
+        navigate(userData.role === 'admin' ? '/admin/dashboard' : '/properties/map');
+      } else {
+        throw new Error("Invalid email or password");
       }
     } catch (error: any) {
       console.error('Login error:', error);
@@ -130,44 +64,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, fullName: string) => {
     setError(null);
     setIsLoading(true);
+    
     try {
-      // Sign up with Supabase
-      const { data, error } = await signUpWithEmail(email, password, fullName);
+      const userData = await registerUser(email, password, fullName);
       
-      if (error) throw error;
-
-      handleAuthSuccess("Registration successful! Please check your email to verify your account.");
-      navigate('/login');
+      if (userData) {
+        setUser(userData);
+        handleAuthSuccess("Registration successful!");
+        navigate('/properties/map');
+      } else {
+        throw new Error("User with this email already exists");
+      }
     } catch (error: any) {
       console.error('Registration error:', error);
-      setError(error.message || 'Registration failed.');
+      setError(error.message || 'Registration failed');
       handleAuthError(error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signOut = async () => {
-    try {
-      await signOutUser();
-      setUser(null);
-      setSession(null);
-      navigate('/login');
-      handleAuthSuccess("Successfully logged out");
-    } catch (error) {
-      console.error('Logout error:', error);
-      handleAuthError(error);
-    }
+  const signOut = () => {
+    clearUserSession();
+    setUser(null);
+    navigate('/login');
+    handleAuthSuccess("Successfully logged out");
   };
 
   const value = {
     user,
-    session,
     isLoading,
     signIn,
     signUp,
     signOut,
-    isAuthenticated: !!session,
+    isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
     error,
     setError,

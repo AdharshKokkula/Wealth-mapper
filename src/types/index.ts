@@ -1,4 +1,3 @@
-
 export type UserRole = 'admin' | 'employee';
 
 export interface User {
@@ -78,5 +77,5 @@ export interface FilterState {
   searchQuery?: string;
 }
 
-// Updated Session type to import from auth types
-export { Session } from './auth';
+// Export auth types directly
+export type { User } from './auth';
