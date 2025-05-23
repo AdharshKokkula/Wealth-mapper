@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     // Set up auth state change listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         console.log('Auth state changed:', event, newSession?.user?.id);
         
         // Cast the Supabase session to our Session type if needed
@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               setUser({
                 id: newSession.user.id,
                 email: newSession.user.email || '',
-                role: 'employee' as UserRole,
+                role: 'employee' as UserRole, // Explicit cast to UserRole
                 company_id: '',
                 created_at: ''
               });
@@ -69,10 +69,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser({
             id: data.session.user.id,
             email: data.session.user.email || '',
-            role: 'employee' as UserRole, // Default role, will be updated after successful login
+            role: 'employee' as UserRole, // Explicit cast to UserRole
             company_id: '',
             created_at: ''
           });
+          
+          // Try to get the actual user data from the database
+          try {
+            const { data: userData, error: userError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', data.session.user.id)
+              .single();
+              
+            if (!userError && userData) {
+              // Cast the role to UserRole to ensure type safety
+              const role = userData.role as UserRole;
+              setUser({
+                ...userData,
+                role
+              } as User);
+            }
+          } catch (fetchError) {
+            console.error('Error fetching user profile:', fetchError);
+            // We continue with the default user object
+          }
         }
       } catch (error) {
         console.error('Session check error:', error);
@@ -107,11 +128,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Cast the Supabase session to our Session type if needed
         setSession(data.session as unknown as Session);
         
-        // Set a default user object based on auth data
-        const defaultUser = {
+        // Try to get user data from the database
+        try {
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', data.user.id)
+            .single();
+            
+          if (!userError && userData) {
+            // Cast the role to UserRole to ensure type safety
+            const role = userData.role as UserRole;
+            
+            const userWithTypedRole: User = {
+              ...userData,
+              role
+            };
+            
+            setUser(userWithTypedRole);
+            
+            toast({
+              title: "Success!",
+              description: "Successfully logged in",
+            });
+            
+            // Navigate based on user role
+            navigate(role === 'admin' ? '/admin/dashboard' : '/properties/map');
+            return;
+          }
+        } catch (fetchError) {
+          console.error('Error fetching user data:', fetchError);
+          // Continue with fallback approach
+        }
+        
+        // Fallback: Use metadata from auth if database fetch fails
+        const role = ((data.user.user_metadata?.role || 'employee') as UserRole);
+        
+        const defaultUser: User = {
           id: data.user.id,
           email: data.user.email || '',
-          role: data.user.role || 'employee' as UserRole,
+          role: role,
           company_id: '',
           created_at: ''
         };
@@ -122,8 +178,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           description: "Successfully logged in",
         });
         
-        // Navigate based on default role (will be updated after checking user profile)
-        navigate(defaultUser.role === 'admin' ? '/admin/dashboard' : '/properties/map');
+        // Navigate based on default role
+        navigate(role === 'admin' ? '/admin/dashboard' : '/properties/map');
       }
     } catch (error: any) {
       console.error('Login error:', error);
@@ -149,6 +205,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         options: {
           data: {
             full_name: fullName,
+            role: 'employee' // Default role for new users
           },
         },
       });

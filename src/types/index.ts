@@ -82,7 +82,7 @@ export interface FilterState {
 export type Session = {
   access_token: string;
   refresh_token: string;
-  expires_at?: number;  // Changed from required to optional
+  expires_at?: number;  // Optional to match Supabase's structure
   expires_in: number;
   user: {
     id: string;
