@@ -1,24 +1,20 @@
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, ReactNode, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from '@/components/ui/use-toast';
-import { User, UserRole, Session } from '@/types';
+import { User, UserRole } from '@/types';
+import { Session, AuthContextType } from '@/types/auth';
 import { supabase } from '@/integrations/supabase/client';
-
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
-  signOut: () => void;
-  isAuthenticated: boolean;
-  isAdmin: boolean;
-  error: string | null;
-  setError: (error: string | null) => void;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
+import { AuthContext, AuthProvider as BaseAuthProvider } from '@/contexts/AuthContext';
+import { 
+  fetchUserProfile, 
+  signInWithEmail, 
+  signUpWithEmail, 
+  signOutUser, 
+  getCurrentSession,
+  createDefaultUser,
+  handleAuthSuccess,
+  handleAuthError
+} from '@/services/authService';
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -41,13 +37,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setTimeout(() => {
             // Set a default user object temporarily
             if (!user) {
-              setUser({
-                id: newSession.user.id,
-                email: newSession.user.email || '',
-                role: 'employee' as UserRole, // Explicit cast to UserRole
-                company_id: '',
-                created_at: ''
-              });
+              setUser(createDefaultUser(newSession.user.id, newSession.user.email || ''));
             }
           }, 0);
         } else {
@@ -66,33 +56,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setSession(data.session as unknown as Session);
           
           // Set a default user object temporarily (will be completed later)
-          setUser({
-            id: data.session.user.id,
-            email: data.session.user.email || '',
-            role: 'employee' as UserRole, // Explicit cast to UserRole
-            company_id: '',
-            created_at: ''
-          });
+          setUser(createDefaultUser(data.session.user.id, data.session.user.email || ''));
           
           // Try to get the actual user data from the database
-          try {
-            const { data: userData, error: userError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', data.session.user.id)
-              .single();
-              
-            if (!userError && userData) {
-              // Cast the role to UserRole to ensure type safety
-              const role = userData.role as UserRole;
-              setUser({
-                ...userData,
-                role
-              } as User);
-            }
-          } catch (fetchError) {
-            console.error('Error fetching user profile:', fetchError);
-            // We continue with the default user object
+          const userData = await fetchUserProfile(data.session.user.id);
+          if (userData) {
+            setUser(userData);
           }
         }
       } catch (error) {
@@ -114,10 +83,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       // Sign in with Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await signInWithEmail(email, password);
       
       if (error) {
         throw error;
@@ -129,42 +95,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setSession(data.session as unknown as Session);
         
         // Try to get user data from the database
-        try {
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', data.user.id)
-            .single();
-            
-          if (!userError && userData) {
-            // Cast the role to UserRole to ensure type safety
-            const role = userData.role as UserRole;
-            
-            const userWithTypedRole: User = {
-              ...userData,
-              role
-            };
-            
-            setUser(userWithTypedRole);
-            
-            toast({
-              title: "Success!",
-              description: "Successfully logged in",
-            });
-            
-            // Navigate based on user role
-            navigate(role === 'admin' ? '/admin/dashboard' : '/properties/map');
-            return;
-          }
-        } catch (fetchError) {
-          console.error('Error fetching user data:', fetchError);
-          // Continue with fallback approach
+        const userData = await fetchUserProfile(data.user.id);
+        
+        if (userData) {
+          setUser(userData);
+          handleAuthSuccess("Successfully logged in");
+          navigate(userData.role === 'admin' ? '/admin/dashboard' : '/properties/map');
+          return;
         }
         
         // Fallback: Use metadata from auth if database fetch fails
         const role = ((data.user.user_metadata?.role || 'employee') as UserRole);
-        
-        const defaultUser: User = {
+        const defaultUser = {
           id: data.user.id,
           email: data.user.email || '',
           role: role,
@@ -173,22 +115,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         };
         
         setUser(defaultUser);
-        toast({
-          title: "Success!",
-          description: "Successfully logged in",
-        });
-        
-        // Navigate based on default role
+        handleAuthSuccess("Successfully logged in");
         navigate(role === 'admin' ? '/admin/dashboard' : '/properties/map');
       }
     } catch (error: any) {
       console.error('Login error:', error);
       setError(error.message || 'Invalid email or password');
-      toast({
-        variant: "destructive",
-        title: "Login failed",
-        description: error.message || 'Invalid email or password',
-      });
+      handleAuthError(error);
     } finally {
       setIsLoading(false);
     }
@@ -199,32 +132,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     try {
       // Sign up with Supabase
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            role: 'employee' // Default role for new users
-          },
-        },
-      });
+      const { data, error } = await signUpWithEmail(email, password, fullName);
       
       if (error) throw error;
 
-      toast({
-        title: "Registration successful!",
-        description: "Please check your email to verify your account.",
-      });
+      handleAuthSuccess("Registration successful! Please check your email to verify your account.");
       navigate('/login');
     } catch (error: any) {
       console.error('Registration error:', error);
       setError(error.message || 'Registration failed.');
-      toast({
-        variant: "destructive",
-        title: "Registration failed",
-        description: error.message || "Couldn't create your account. Please try again.",
-      });
+      handleAuthError(error);
     } finally {
       setIsLoading(false);
     }
@@ -232,21 +149,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await signOutUser();
       setUser(null);
       setSession(null);
       navigate('/login');
-      toast({
-        title: "Success!",
-        description: "Successfully logged out",
-      });
+      handleAuthSuccess("Successfully logged out");
     } catch (error) {
       console.error('Logout error:', error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Error logging out",
-      });
+      handleAuthError(error);
     }
   };
 
@@ -263,7 +173,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <BaseAuthProvider value={value}>{children}</BaseAuthProvider>;
 };
 
 export const useAuth = () => {

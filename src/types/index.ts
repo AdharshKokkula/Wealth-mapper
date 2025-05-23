@@ -78,15 +78,5 @@ export interface FilterState {
   searchQuery?: string;
 }
 
-// Updated Session type to match Supabase's session structure
-export type Session = {
-  access_token: string;
-  refresh_token: string;
-  expires_at?: number;  // Optional to match Supabase's structure
-  expires_in: number;
-  user: {
-    id: string;
-    email: string;
-    role: string;
-  };
-};
+// Updated Session type to import from auth types
+export { Session } from './auth';
